@@ -8,11 +8,12 @@ import TransactionForm from './components/TransactionForm';
 import SupplierList from './components/SupplierList';
 import SupplierStatement from './components/SupplierStatement';
 import Settings from './components/Settings';
-import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, Lock, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, Lock, KeyRound, Menu, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'suppliers' | 'transaction' | 'users' | 'settings'>('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // App Settings for Branding
   const [appSettings, setAppSettings] = useState<AppSettings>({
@@ -242,6 +243,7 @@ const App: React.FC = () => {
   const handleDashboardNavigate = (type: TransactionType) => {
     setInitialTransactionType(type);
     setActiveTab('transaction');
+    setIsMobileMenuOpen(false);
   };
 
   if (!isSupabaseConfigured) {
@@ -250,6 +252,8 @@ const App: React.FC = () => {
 
   // Handle tab switching
   const handleTabChange = (tab: typeof activeTab) => {
+    setIsMobileMenuOpen(false); // Close mobile menu on navigate
+    
     if (tab === 'settings' && !isAdminLoggedIn) {
       setShowAdminLogin(true);
       setAdminAuthError('');
@@ -277,6 +281,84 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+      
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          ></div>
+
+          {/* Drawer */}
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-slate-900 text-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-700">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                 {appSettings.logoUrl ? (
+                    <img src={appSettings.logoUrl} alt="Logo" className="h-8 w-auto rounded bg-white p-0.5" />
+                 ) : (
+                    <PackagePlus className="w-6 h-6 text-primary-500" />
+                 )}
+                 <span className="font-bold text-lg">القائمة</span>
+               </div>
+               <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            
+            {/* Nav Links */}
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button 
+                  onClick={() => handleTabChange('dashboard')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'dashboard' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <LayoutDashboard className="w-5 h-5" />
+                  <span>الرئيسية</span>
+                </button>
+                
+                <button 
+                  onClick={() => handleTabChange('suppliers')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'suppliers' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <Users className="w-5 h-5" />
+                  <span>حسابات الموردين</span>
+                </button>
+
+                <button 
+                  onClick={() => handleTabChange('transaction')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'transaction' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  <span>تسجيل عملية</span>
+                </button>
+
+                <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
+                   <button 
+                    onClick={() => handleTabChange('settings')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'settings' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                  >
+                    <SettingsIcon className="w-5 h-5" />
+                    <span>الإعدادات</span>
+                  </button>
+                </div>
+            </nav>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+               <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors font-medium"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>إعادة تحميل النظام</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-slate-900 text-white fixed h-full right-0 top-0 no-print z-50">
         <div className="p-6 border-b border-slate-800">
@@ -295,7 +377,7 @@ const App: React.FC = () => {
         <nav className="flex-1 p-4 space-y-2">
           <button 
             onClick={() => handleTabChange('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'dashboard' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span>الرئيسية</span>
@@ -303,7 +385,7 @@ const App: React.FC = () => {
           
           <button 
             onClick={() => handleTabChange('suppliers')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'suppliers' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'suppliers' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <Users className="w-5 h-5" />
             <span>حسابات الموردين</span>
@@ -311,7 +393,7 @@ const App: React.FC = () => {
 
           <button 
             onClick={() => handleTabChange('transaction')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'transaction' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'transaction' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
           >
             <PlusCircle className="w-5 h-5" />
             <span>تسجيل عملية</span>
@@ -320,7 +402,7 @@ const App: React.FC = () => {
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
              <button 
               onClick={() => handleTabChange('settings')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium ${activeTab === 'settings' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
             >
               <SettingsIcon className="w-5 h-5" />
               <span>الإعدادات</span>
@@ -343,15 +425,27 @@ const App: React.FC = () => {
       <main className="flex-1 md:mr-64 p-4 md:p-8">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-6 no-print">
-           <div className="flex items-center gap-2">
-              {appSettings.logoUrl && <img src={appSettings.logoUrl} className="h-8 w-auto" alt="Logo" />}
-              <h1 className="text-xl font-bold text-slate-800">{appSettings.companyName || 'نظام الموردين'}</h1>
+           <div className="flex items-center gap-3">
+              {/* Menu Trigger */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)} 
+                className="p-2 text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+
+              {/* Logo & Name */}
+              <div className="flex items-center gap-2">
+                {appSettings.logoUrl && <img src={appSettings.logoUrl} className="h-8 w-auto" alt="Logo" />}
+                <h1 className="text-xl font-bold text-slate-800 line-clamp-1">{appSettings.companyName || 'نظام الموردين'}</h1>
+              </div>
            </div>
+
           <div className="flex gap-2">
-             <button onClick={() => handleTabChange('transaction')} className="p-2 bg-primary-100 text-primary-600 rounded-full">
+             <button onClick={() => handleTabChange('transaction')} className="p-2 bg-primary-100 text-primary-600 rounded-full shadow-sm">
                <PlusCircle className="w-6 h-6" />
              </button>
-             <button onClick={() => handleTabChange('suppliers')} className="p-2 bg-slate-100 text-slate-600 rounded-full">
+             <button onClick={() => handleTabChange('suppliers')} className="p-2 bg-slate-100 text-slate-600 rounded-full shadow-sm">
                <Users className="w-6 h-6" />
              </button>
           </div>

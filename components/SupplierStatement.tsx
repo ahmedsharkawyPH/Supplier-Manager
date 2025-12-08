@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Supplier, Transaction, AppSettings } from '../types';
 import { Printer, FileSpreadsheet, ArrowRight, Filter, Calendar, FileDown, Search, CheckSquare, Square } from 'lucide-react';
@@ -125,9 +124,9 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
     const opt = {
       margin: [0.3, 0.3, 0.3, 0.3] as [number, number, number, number], // top, left, bottom, right in inches
       filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+      jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'landscape' as const }
     };
 
     try {
