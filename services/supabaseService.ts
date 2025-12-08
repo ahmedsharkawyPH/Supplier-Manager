@@ -7,8 +7,18 @@ let supabase: SupabaseClient | null = null;
 export const initSupabase = (creds: SupabaseCredentials) => {
   try {
     supabase = createClient(creds.url, creds.key);
-    localStorage.setItem('supabase_url', creds.url);
-    localStorage.setItem('supabase_key', creds.key);
+    
+    // Only save to local storage if these are NOT the environment variables
+    // This prevents duplicating config into local storage
+    // Safely access env
+    const env = (import.meta as any).env;
+    const envUrl = env?.VITE_SUPABASE_URL;
+
+    if (creds.url !== envUrl) {
+      localStorage.setItem('supabase_url', creds.url);
+      localStorage.setItem('supabase_key', creds.key);
+    }
+    
     return true;
   } catch (error) {
     console.error("Invalid Supabase credentials", error);
@@ -17,15 +27,29 @@ export const initSupabase = (creds: SupabaseCredentials) => {
 };
 
 export const getSavedCredentials = (): SupabaseCredentials | null => {
+  // 1. Priority: Check Environment Variables (Vite)
+  // Safely access env
+  const env = (import.meta as any).env;
+  const envUrl = env?.VITE_SUPABASE_URL;
+  const envKey = env?.VITE_SUPABASE_ANON_KEY;
+  
+  if (envUrl && envKey) {
+    return { url: envUrl, key: envKey };
+  }
+
+  // 2. Fallback: Check Local Storage
   const url = localStorage.getItem('supabase_url');
   const key = localStorage.getItem('supabase_key');
   if (url && key) return { url, key };
+  
   return null;
 };
 
 export const clearCredentials = () => {
   localStorage.removeItem('supabase_url');
   localStorage.removeItem('supabase_key');
+  // Note: We cannot "clear" env vars from running code, 
+  // so if they exist in build, app will reconnect on refresh.
   supabase = null;
 };
 
