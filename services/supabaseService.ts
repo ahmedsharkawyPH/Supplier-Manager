@@ -1,23 +1,14 @@
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Supplier, Transaction, SupabaseCredentials, User, AppSettings } from '../types';
 
 let supabase: SupabaseClient | null = null;
 
+// Initialize using passed credentials (from Env Vars in SupabaseSetup)
 export const initSupabase = (creds: SupabaseCredentials) => {
   try {
+    if (!creds.url || !creds.key) return false;
     supabase = createClient(creds.url, creds.key);
-    
-    // Check if we are using environment variables
-    // Safely access env using optional chaining
-    const envUrl = import.meta.env?.VITE_SUPABASE_URL;
-
-    // Only save to local storage if these are NOT the environment variables
-    // to prevent storing sensitive keys in local storage if managed by env
-    if (creds.url !== envUrl) {
-      localStorage.setItem('supabase_url', creds.url);
-      localStorage.setItem('supabase_key', creds.key);
-    }
-    
     return true;
   } catch (error) {
     console.error("Invalid Supabase credentials", error);
@@ -25,29 +16,9 @@ export const initSupabase = (creds: SupabaseCredentials) => {
   }
 };
 
-export const getSavedCredentials = (): SupabaseCredentials | null => {
-  // 1. Priority: Check Environment Variables (Vite)
-  // Safely access env using optional chaining
-  const envUrl = import.meta.env?.VITE_SUPABASE_URL;
-  const envKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
-  
-  if (envUrl && envKey) {
-    return { url: envUrl, key: envKey };
-  }
-
-  // 2. Fallback: Check Local Storage
-  const url = localStorage.getItem('supabase_url');
-  const key = localStorage.getItem('supabase_key');
-  if (url && key) return { url, key };
-  
-  return null;
-};
-
 export const clearCredentials = () => {
-  localStorage.removeItem('supabase_url');
-  localStorage.removeItem('supabase_key');
-  // Note: We cannot "clear" env vars from running code, 
-  // so if they exist in build, app will reconnect on refresh.
+  // Just reset the client in memory.
+  // Since we rely on Env vars, a refresh will reconnect automatically.
   supabase = null;
 };
 

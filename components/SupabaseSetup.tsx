@@ -1,94 +1,70 @@
 
-import React, { useState, useEffect } from 'react';
-import { Database, Save, AlertCircle, CheckCircle } from 'lucide-react';
-import { initSupabase, getSavedCredentials } from '../services/supabaseService';
+import React, { useEffect, useState } from 'react';
+import { Database, AlertCircle, RefreshCw } from 'lucide-react';
+import { initSupabase } from '../services/supabaseService';
 
 interface Props {
   onConnected: () => void;
 }
 
 const SupabaseSetup: React.FC<Props> = ({ onConnected }) => {
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = getSavedCredentials();
-    if (saved) {
-      const success = initSupabase(saved);
-      if (success) onConnected();
-    }
+    // Attempt auto-connection on mount
+    const connect = () => {
+      // Safely access env vars
+      const url = import.meta.env?.VITE_SUPABASE_URL;
+      const key = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+
+      if (!url || !key) {
+        setError('Environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are missing.');
+        return;
+      }
+
+      const success = initSupabase({ url, key });
+      if (success) {
+        onConnected();
+      } else {
+        setError('Failed to initialize Supabase client. Check credentials.');
+      }
+    };
+
+    connect();
   }, [onConnected]);
 
-  const handleConnect = () => {
-    if (!url || !key) return;
-    const success = initSupabase({ url, key });
-    if (success) {
-      setStatus('success');
-      setTimeout(() => onConnected(), 1000);
-    } else {
-      setStatus('error');
-    }
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">فشل الاتصال</h2>
+          <p className="text-slate-600 mb-6 text-sm">{error}</p>
+          <div className="bg-slate-50 p-4 rounded-lg text-left text-xs font-mono text-slate-500 mb-6 dir-ltr">
+            Make sure to add these to Vercel Project Settings:<br/>
+            VITE_SUPABASE_URL<br/>
+            VITE_SUPABASE_ANON_KEY
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            إعادة المحاولة
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
-        <div className="bg-primary-600 p-6 text-white flex items-center gap-3">
-          <Database className="w-8 h-8" />
-          <h1 className="text-2xl font-bold">إعداد الاتصال بقاعدة البيانات</h1>
-        </div>
-        
-        <div className="p-8">
-          <p className="text-slate-600 mb-6 leading-relaxed">
-            للبدء، يرجى إدخال بيانات مشروع Supabase الخاص بك. يتم تخزين هذه البيانات محلياً في متصفحك فقط.
-          </p>
-
-          <div className="space-y-4 mb-8">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">رابط المشروع (Project URL)</label>
-              <input 
-                type="text" 
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://xyz.supabase.co"
-                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none dir-ltr text-left"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">مفتاح الوصول (Anon Key)</label>
-              <input 
-                type="password" 
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:outline-none dir-ltr text-left"
-              />
-            </div>
-          </div>
-
-          <button 
-            onClick={handleConnect}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
-          >
-            <Save className="w-5 h-5" />
-            <span>حفظ واتصال</span>
-          </button>
-
-          {status === 'success' && (
-            <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              تم الاتصال بنجاح! جاري التحميل...
-            </div>
-          )}
-
-          {status === 'error' && (
-            <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              فشل الاتصال. تأكد من صحة البيانات.
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center animate-pulse">
+        <Database className="w-12 h-12 text-primary-500 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-slate-700">جاري الاتصال بقاعدة البيانات...</h2>
+        <p className="text-slate-400 text-sm mt-2">يرجى الانتظار لحظات</p>
       </div>
     </div>
   );

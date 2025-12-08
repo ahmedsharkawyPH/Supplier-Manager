@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Supplier, Transaction, SupplierSummary, AppSettings, TransactionType, User } from './types';
 import * as api from './services/supabaseService';
 import SupabaseSetup from './components/SupabaseSetup';
@@ -8,8 +8,7 @@ import TransactionForm from './components/TransactionForm';
 import SupplierList from './components/SupplierList';
 import SupplierStatement from './components/SupplierStatement';
 import Settings from './components/Settings';
-import UserManagement from './components/UserManagement';
-import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, UserCog, Lock, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, Lock, KeyRound } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(false);
@@ -44,17 +43,7 @@ const App: React.FC = () => {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [adminAuthError, setAdminAuthError] = useState('');
 
-  // Check connection on mount
-  useEffect(() => {
-    const creds = api.getSavedCredentials();
-    if (creds) {
-      if(api.initSupabase(creds)) {
-        setIsSupabaseConfigured(true);
-        fetchData();
-      }
-    }
-  }, []);
-
+  // Initial Fetch logic
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -71,7 +60,6 @@ const App: React.FC = () => {
       setAppSettings(fetchedSettings);
     } catch (error) {
       console.error("Error fetching data:", error);
-      // Don't alert immediately on load to avoid spamming if just one fails
     } finally {
       setLoading(false);
     }
@@ -222,11 +210,8 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     api.clearCredentials();
-    setIsSupabaseConfigured(false);
-    setSuppliers([]);
-    setTransactions([]);
-    setUsers([]);
-    setIsAdminLoggedIn(false);
+    // Force reload to reset app state completely since we rely on env vars
+    window.location.reload();
   };
 
   // Calculate summaries locally
@@ -349,7 +334,7 @@ const App: React.FC = () => {
             className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors"
           >
             <LogOut className="w-5 h-5" />
-            <span>قطع الاتصال</span>
+            <span>إعادة تحميل النظام</span>
           </button>
         </div>
       </aside>
