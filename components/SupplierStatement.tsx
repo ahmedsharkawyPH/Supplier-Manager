@@ -1,7 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Supplier, Transaction, AppSettings } from '../types';
 import { Printer, FileSpreadsheet, ArrowRight, Filter, Calendar, FileDown, Search, CheckSquare, Square } from 'lucide-react';
-import { getSettings } from '../services/settingsService';
 import * as XLSX from 'xlsx';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -10,6 +10,7 @@ interface Props {
   supplier: Supplier;
   transactions: Transaction[];
   onBack: () => void;
+  settings: AppSettings;
 }
 
 const formatDate = (dateStr: string) => {
@@ -21,13 +22,8 @@ const formatDate = (dateStr: string) => {
   return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
 };
 
-const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack }) => {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, settings }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-  useEffect(() => {
-    setSettings(getSettings());
-  }, []);
 
   // Default to last 2 weeks
   const today = new Date().toISOString().split('T')[0];

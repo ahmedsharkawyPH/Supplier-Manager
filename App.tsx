@@ -460,6 +460,7 @@ const App: React.FC = () => {
                   supplier={selectedSupplier}
                   transactions={transactions.filter(t => t.supplier_id === selectedSupplier.id)}
                   onBack={() => setSelectedSupplier(null)}
+                  settings={appSettings}
                 />
               )}
             </div>
