@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Cairo', sans-serif;
+}
+
+@media print {
+  body, html, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  aside {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  /* Reset Tailwind structural classes that break printing */
+  .min-h-screen, .h-screen, .max-h-screen {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .fixed, .sticky {
+    position: static !important;
+  }
+  
+  /* Ensure tables break nicely */
+  table { width: 100% !important; border-collapse: collapse !important; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr { page-break-inside: avoid; }
+  
+  /* Hide scrollbars */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Better font rendering */
+  * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+}

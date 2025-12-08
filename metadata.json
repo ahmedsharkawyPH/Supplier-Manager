@@ -1,0 +1,5 @@
+{
+  "name": "Supplier Manager Pro (نظام إدارة الموردين)",
+  "description": "A comprehensive supplier management system integrated with Supabase. Track invoices, payments, and returns with real-time balance calculations and data visualization.",
+  "requestFramePermissions": []
+}
