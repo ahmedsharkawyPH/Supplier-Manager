@@ -13,13 +13,10 @@ export default defineConfig({
             if (id.includes('xlsx')) {
               return 'xlsx';
             }
-            // html2pdf chunk removed to let Vite handle it and avoid circular deps/init issues
-            if (id.includes('@supabase')) {
-              return 'supabase';
-            }
             if (id.includes('lucide-react')) {
               return 'icons';
             }
+            // Supabase chunk removed to let Vite handle it and avoid circular deps/init issues
             return 'vendor';
           }
         },
