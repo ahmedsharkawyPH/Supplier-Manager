@@ -1,10 +1,7 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Supplier, Transaction, AppSettings } from '../types';
 import { Printer, FileSpreadsheet, ArrowRight, Filter, Calendar, FileDown, Search, CheckSquare, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 interface Props {
   supplier: Supplier;
@@ -115,7 +112,7 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
     window.print();
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     setIsGeneratingPdf(true);
     const element = document.getElementById('printable-content');
     
@@ -132,14 +129,19 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
       jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
     };
 
-    // Use html2pdf library
-    html2pdf().set(opt).from(element).save().then(() => {
-      setIsGeneratingPdf(false);
-    }).catch((err: any) => {
+    try {
+      // Dynamic import to avoid initialization errors
+      // @ts-ignore
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = html2pdfModule.default;
+      
+      await html2pdf().set(opt).from(element).save();
+    } catch (err: any) {
       console.error(err);
+      alert('حدث خطأ أثناء تحميل الملف (يرجى المحاولة مرة أخرى)');
+    } finally {
       setIsGeneratingPdf(false);
-      alert('حدث خطأ أثناء تحميل الملف');
-    });
+    }
   };
 
   const handleExportExcel = () => {

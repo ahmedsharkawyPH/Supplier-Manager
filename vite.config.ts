@@ -13,9 +13,7 @@ export default defineConfig({
             if (id.includes('xlsx')) {
               return 'xlsx';
             }
-            if (id.includes('html2pdf.js')) {
-              return 'html2pdf';
-            }
+            // html2pdf chunk removed to let Vite handle it and avoid circular deps/init issues
             if (id.includes('@supabase')) {
               return 'supabase';
             }
