@@ -181,6 +181,22 @@ const App: React.FC = () => {
     }
   };
 
+  const handleResetData = async () => {
+    setLoading(true);
+    try {
+      await api.deleteAllData();
+      setSuppliers([]);
+      setTransactions([]);
+      setSelectedSupplier(null);
+      alert("تم حذف جميع بيانات الموردين والعمليات بنجاح.");
+    } catch (error) {
+      console.error(error);
+      alert("حدث خطأ أثناء حذف البيانات.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // User Management Handlers
   const handleAddUser = async (name: string, code: string) => {
     try {
@@ -456,6 +472,7 @@ const App: React.FC = () => {
                  users={users}
                  onAddUser={handleAddUser}
                  onDeleteUser={handleDeleteUser}
+                 onResetData={handleResetData}
                />
              </div>
           )}

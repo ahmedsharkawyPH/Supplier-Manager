@@ -90,6 +90,26 @@ export const deleteTransaction = async (id: number): Promise<void> => {
     if (error) throw error;
 };
 
+export const deleteAllData = async (): Promise<void> => {
+  if (!supabase) throw new Error("Supabase not initialized");
+  
+  // 1. Delete all transactions first (FK constraint)
+  const { error: transError } = await supabase
+    .from('transactions')
+    .delete()
+    .gt('id', 0); // Delete all rows where id > 0
+
+  if (transError) throw transError;
+
+  // 2. Delete all suppliers
+  const { error: suppError } = await supabase
+    .from('suppliers')
+    .delete()
+    .gt('id', 0);
+
+  if (suppError) throw suppError;
+};
+
 // --- User Management ---
 
 export const fetchUsers = async (): Promise<User[]> => {
