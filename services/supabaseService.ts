@@ -1,4 +1,3 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Supplier, Transaction, SupabaseCredentials, User, AppSettings } from '../types';
 
@@ -8,12 +7,12 @@ export const initSupabase = (creds: SupabaseCredentials) => {
   try {
     supabase = createClient(creds.url, creds.key);
     
-    // Only save to local storage if these are NOT the environment variables
-    // This prevents duplicating config into local storage
-    // Safely access env
-    const env = (import.meta as any).env;
-    const envUrl = env?.VITE_SUPABASE_URL;
+    // Check if we are using environment variables
+    // Safely access env using optional chaining
+    const envUrl = import.meta.env?.VITE_SUPABASE_URL;
 
+    // Only save to local storage if these are NOT the environment variables
+    // to prevent storing sensitive keys in local storage if managed by env
     if (creds.url !== envUrl) {
       localStorage.setItem('supabase_url', creds.url);
       localStorage.setItem('supabase_key', creds.key);
@@ -28,10 +27,9 @@ export const initSupabase = (creds: SupabaseCredentials) => {
 
 export const getSavedCredentials = (): SupabaseCredentials | null => {
   // 1. Priority: Check Environment Variables (Vite)
-  // Safely access env
-  const env = (import.meta as any).env;
-  const envUrl = env?.VITE_SUPABASE_URL;
-  const envKey = env?.VITE_SUPABASE_ANON_KEY;
+  // Safely access env using optional chaining
+  const envUrl = import.meta.env?.VITE_SUPABASE_URL;
+  const envKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
   
   if (envUrl && envKey) {
     return { url: envUrl, key: envKey };
