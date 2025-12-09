@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Supplier, Transaction, SupplierSummary, AppSettings, TransactionType, User } from './types';
 import * as api from './services/supabaseService';
 import SupabaseSetup from './components/SupabaseSetup';
@@ -8,7 +8,7 @@ import TransactionForm from './components/TransactionForm';
 import SupplierList from './components/SupplierList';
 import SupplierStatement from './components/SupplierStatement';
 import Settings from './components/Settings';
-import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, Lock, KeyRound, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, PlusCircle, LogOut, PackagePlus, Settings as SettingsIcon, Lock, KeyRound, Menu, X, WifiOff, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(false);
@@ -21,6 +21,10 @@ const App: React.FC = () => {
     logoUrl: '',
     adminPassword: '1234'
   });
+
+  // Connectivity State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Navigation State for Supplier Statement
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -43,6 +47,42 @@ const App: React.FC = () => {
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [adminAuthError, setAdminAuthError] = useState('');
+
+  // Connectivity Listeners
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      // Trigger sync
+      setIsSyncing(true);
+      try {
+        const count = await api.syncOfflineChanges();
+        if (count > 0) {
+           // Refetch data to show correct server state
+           await fetchData();
+           alert(`تمت استعادة الاتصال ومزامنة ${count} عملية مع الخادم.`);
+        } else {
+           // Just refetch to ensure freshness
+           await fetchData();
+        }
+      } catch (e) {
+        console.error("Sync failed", e);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Initial Fetch logic
   const fetchData = async () => {
@@ -282,6 +322,23 @@ const App: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       
+      {/* Offline/Sync Status Bar */}
+      {(!isOnline || isSyncing) && (
+         <div className={`fixed top-0 left-0 right-0 h-8 z-[100] flex items-center justify-center text-xs font-bold gap-2 ${isOnline ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+           {isSyncing ? (
+             <>
+               <RefreshCw className="w-3 h-3 animate-spin" />
+               <span>جاري مزامنة البيانات مع الخادم...</span>
+             </>
+           ) : (
+             <>
+               <WifiOff className="w-3 h-3" />
+               <span>وضع عدم الاتصال - يتم حفظ العمليات محلياً</span>
+             </>
+           )}
+         </div>
+      )}
+
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-[60] md:hidden">
@@ -422,7 +479,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:mr-64 p-4 md:p-8">
+      <main className={`flex-1 md:mr-64 p-4 md:p-8 ${!isOnline || isSyncing ? 'pt-12' : ''}`}>
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-6 no-print">
            <div className="flex items-center gap-3">
