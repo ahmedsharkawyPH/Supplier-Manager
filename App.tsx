@@ -52,16 +52,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      // Trigger sync
       setIsSyncing(true);
       try {
         const count = await api.syncOfflineChanges();
         if (count > 0) {
-           // Refetch data to show correct server state
            await fetchData();
            alert(`تمت استعادة الاتصال ومزامنة ${count} عملية مع الخادم.`);
         } else {
-           // Just refetch to ensure freshness
            await fetchData();
         }
       } catch (e) {
@@ -88,7 +85,6 @@ const App: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Parallel fetch including Settings
       const [supps, trans, fetchedUsers, fetchedSettings] = await Promise.all([
         api.fetchSuppliers(),
         api.fetchTransactions(),
@@ -127,7 +123,6 @@ const App: React.FC = () => {
   const handleTransactionSubmit = async (data: any) => {
     setLoading(true);
     try {
-      // 1. Create the main transaction (Invoice/Return/Payment)
       let notes = data.notes;
       if (data.type === 'return' && data.original_invoice_number) {
         notes = `${notes ? notes + ' - ' : ''}فاتورة أصلية رقم: ${data.original_invoice_number}`;
@@ -144,13 +139,12 @@ const App: React.FC = () => {
       };
       await api.createTransaction(mainTransData);
 
-      // 2. Check if there is an associated payment (Invoice with payment)
       if (data.hasPayment && data.paymentAmount > 0) {
         const paymentTransData = {
           supplier_id: data.supplier_id,
-          type: 'payment', // Force type to payment
+          type: 'payment',
           amount: data.paymentAmount,
-          date: data.date, // Same date as invoice
+          date: data.date,
           reference_number: data.paymentReference,
           notes: `سداد جزء من الفاتورة رقم: ${data.reference_number || '-'}`,
           created_by: data.created_by
@@ -159,7 +153,6 @@ const App: React.FC = () => {
         await api.createTransaction(paymentTransData);
       }
 
-      // 3. Check if there is an associated return (Invoice with return deduction)
       if (data.hasReturn && data.returnAmount > 0) {
         let returnNotes = `خصم مرتجع أثناء فاتورة رقم: ${data.reference_number || '-'}`;
         if (data.returnOriginalRef) {
@@ -171,10 +164,10 @@ const App: React.FC = () => {
 
         const returnTransData = {
           supplier_id: data.supplier_id,
-          type: 'return', // Force type to return
+          type: 'return',
           amount: data.returnAmount,
-          date: data.date, // Same date as invoice
-          reference_number: data.returnReceiptRef, // Use the specific return receipt number
+          date: data.date,
+          reference_number: data.returnReceiptRef,
           notes: returnNotes,
           created_by: data.created_by
         };
@@ -182,15 +175,27 @@ const App: React.FC = () => {
         await api.createTransaction(returnTransData);
       }
 
-      // Refresh transactions
       const updatedTrans = await api.fetchTransactions();
       setTransactions(updatedTrans);
       
-      setActiveTab('suppliers'); // Go to list to see update
-      setSelectedSupplier(null); // Reset view to list
+      setActiveTab('suppliers');
+      setSelectedSupplier(null);
     } catch (error) {
       console.error(error);
       alert("فشل تسجيل العملية");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateTransaction = async (id: number, payload: Partial<Transaction>) => {
+    setLoading(true);
+    try {
+      await api.updateTransaction(id, payload);
+      const updatedTrans = await api.fetchTransactions();
+      setTransactions(updatedTrans);
+    } catch (error) {
+      alert("فشل تحديث العملية");
     } finally {
       setLoading(false);
     }
@@ -251,11 +256,9 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     api.clearCredentials();
-    // Force reload to reset app state completely since we rely on env vars
     window.location.reload();
   };
 
-  // Calculate summaries locally
   const summaries = useMemo<SupplierSummary[]>(() => {
     return suppliers.map(supplier => {
       const supplierTrans = transactions.filter(t => t.supplier_id === supplier.id);
@@ -279,7 +282,6 @@ const App: React.FC = () => {
     });
   }, [suppliers, transactions]);
 
-  // Navigate from Dashboard to Transaction Form
   const handleDashboardNavigate = (type: TransactionType) => {
     setInitialTransactionType(type);
     setActiveTab('transaction');
@@ -290,9 +292,8 @@ const App: React.FC = () => {
     return <SupabaseSetup onConnected={() => { setIsSupabaseConfigured(true); fetchData(); }} />;
   }
 
-  // Handle tab switching
   const handleTabChange = (tab: typeof activeTab) => {
-    setIsMobileMenuOpen(false); // Close mobile menu on navigate
+    setIsMobileMenuOpen(false);
     
     if (tab === 'settings' && !isAdminLoggedIn) {
       setShowAdminLogin(true);
@@ -342,15 +343,12 @@ const App: React.FC = () => {
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-[60] md:hidden">
-          {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileMenuOpen(false)}
           ></div>
 
-          {/* Drawer */}
           <div className="absolute right-0 top-0 bottom-0 w-72 bg-slate-900 text-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-slate-700">
-            {/* Header */}
             <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                <div className="flex items-center gap-2">
                  {appSettings.logoUrl ? (
@@ -365,7 +363,6 @@ const App: React.FC = () => {
                </button>
             </div>
             
-            {/* Nav Links */}
             <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                 <button 
                   onClick={() => handleTabChange('dashboard')}
@@ -402,7 +399,6 @@ const App: React.FC = () => {
                 </div>
             </nav>
 
-            {/* Footer */}
             <div className="p-4 border-t border-slate-800 bg-slate-900/50">
                <button 
                 onClick={handleLogout}
@@ -483,7 +479,6 @@ const App: React.FC = () => {
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-6 no-print">
            <div className="flex items-center gap-3">
-              {/* Menu Trigger */}
               <button 
                 onClick={() => setIsMobileMenuOpen(true)} 
                 className="p-2 text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
@@ -491,7 +486,6 @@ const App: React.FC = () => {
                 <Menu className="w-6 h-6" />
               </button>
 
-              {/* Logo & Name */}
               <div className="flex items-center gap-2">
                 {appSettings.logoUrl && <img src={appSettings.logoUrl} className="h-8 w-auto" alt="Logo" />}
                 <h1 className="text-xl font-bold text-slate-800 line-clamp-1">{appSettings.companyName || 'نظام الموردين'}</h1>
@@ -508,7 +502,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Content */}
         <div className="max-w-6xl mx-auto space-y-6">
           
           {loading && (
@@ -542,7 +535,6 @@ const App: React.FC = () => {
             <div className="animate-in fade-in duration-300 space-y-6">
               {!selectedSupplier ? (
                 <>
-                  {/* Supplier List View */}
                   <div className="flex justify-between items-center flex-wrap gap-4 no-print">
                     <h2 className="text-2xl font-bold text-slate-800">الموردين والأرصدة</h2>
                     <button 
@@ -591,7 +583,6 @@ const App: React.FC = () => {
                   />
                 </>
               ) : (
-                /* Detailed Statement View */
                 <SupplierStatement 
                   supplier={selectedSupplier}
                   transactions={transactions.filter(t => t.supplier_id === selectedSupplier.id)}
@@ -607,6 +598,9 @@ const App: React.FC = () => {
                <Settings 
                  onSave={(newSettings) => setAppSettings(newSettings)}
                  users={users}
+                 transactions={transactions}
+                 onUpdateTransaction={handleUpdateTransaction}
+                 onDeleteTransaction={handleDeleteTransaction}
                  onAddUser={handleAddUser}
                  onDeleteUser={handleDeleteUser}
                  onResetData={handleResetData}

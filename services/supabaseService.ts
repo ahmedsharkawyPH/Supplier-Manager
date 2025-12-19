@@ -17,6 +17,7 @@ const CACHE_KEYS = {
 type QueueAction = 
   | { type: 'CREATE_SUPPLIER'; payload: { name: string; phone: string; tempId: number } }
   | { type: 'CREATE_TRANSACTION'; payload: any; tempId: number }
+  | { type: 'UPDATE_TRANSACTION'; id: number; payload: Partial<Transaction> }
   | { type: 'DELETE_TRANSACTION'; id: number }
   | { type: 'DELETE_USER'; id: number }
   | { type: 'CREATE_USER'; payload: { name: string; code: string; tempId: number } }
@@ -83,12 +84,13 @@ export const syncOfflineChanges = async (): Promise<number> => {
           await supabase.from('suppliers').insert([{ name: action.payload.name, phone: action.payload.phone }]);
           break;
         case 'CREATE_TRANSACTION':
-          // Remove temp props before sending
           const { tempId, ...transData } = action.payload;
           await supabase.from('transactions').insert([transData]);
           break;
+        case 'UPDATE_TRANSACTION':
+          await supabase.from('transactions').update(action.payload).eq('id', action.id);
+          break;
         case 'DELETE_TRANSACTION':
-          // Only delete if it's a real ID (positive)
           if (action.id > 0) {
             await supabase.from('transactions').delete().eq('id', action.id);
           }
@@ -113,7 +115,6 @@ export const syncOfflineChanges = async (): Promise<number> => {
       syncedCount++;
     } catch (error) {
       console.error("Failed to sync item", action, error);
-      // If it failed, keep it in queue to try again (unless it's a permanent error, but simplistic for now)
       remainingQueue.push(action); 
     }
   }
@@ -122,7 +123,7 @@ export const syncOfflineChanges = async (): Promise<number> => {
   return syncedCount;
 };
 
-// --- API Calls (Wrapped with Offline Logic) ---
+// --- API Calls ---
 
 export const fetchSuppliers = async (): Promise<Supplier[]> => {
   if (supabase && isOnline()) {
@@ -145,17 +146,12 @@ export const createSupplier = async (name: string, phone: string): Promise<Suppl
     if (error) throw error;
     return data;
   } else {
-    // Offline Optimistic Update
-    const tempId = -Date.now(); // Negative ID for temp items
+    const tempId = -Date.now();
     const tempSupplier = { id: tempId, name, phone, created_at: new Date().toISOString() };
-    
     addToSyncQueue({ type: 'CREATE_SUPPLIER', payload: { name, phone, tempId } });
-    
-    // Update local cache immediately
     const cached = getFromCache<Supplier>(CACHE_KEYS.SUPPLIERS);
     cached.push(tempSupplier);
     saveToCache(CACHE_KEYS.SUPPLIERS, cached);
-    
     return tempSupplier;
   }
 };
@@ -173,15 +169,12 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
     }
   }
   
-  // Combine cached server data with local offline creations
   const cached = getFromCache<Transaction>(CACHE_KEYS.TRANSACTIONS);
   const queue = getFromCache<QueueAction>(CACHE_KEYS.SYNC_QUEUE);
   
-  // We need to re-construct the optimistically added transactions from the queue to show them
   const offlineTransactions = queue
     .filter(q => q.type === 'CREATE_TRANSACTION')
     .map((q: any) => {
-        // Need to find supplier name for display
         const suppliers = getFromCache<Supplier>(CACHE_KEYS.SUPPLIERS);
         const supplier = suppliers.find(s => s.id === q.payload.supplier_id);
         return {
@@ -192,7 +185,6 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
         } as Transaction;
     });
 
-  // Merge and sort
   const all = [...offlineTransactions, ...cached].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -210,19 +202,27 @@ export const createTransaction = async (transaction: Omit<Transaction, 'id' | 'c
     if (error) throw error;
     return data;
   } else {
-    // Offline
     const tempId = -Date.now();
     // @ts-ignore
     const payload = { ...transaction, tempId };
-    
     addToSyncQueue({ type: 'CREATE_TRANSACTION', payload, tempId });
-    
-    // Construct return object for UI
-    return {
-        id: tempId,
-        ...transaction,
-        created_at: new Date().toISOString()
-    } as Transaction;
+    return { id: tempId, ...transaction, created_at: new Date().toISOString() } as Transaction;
+  }
+};
+
+export const updateTransaction = async (id: number, payload: Partial<Transaction>): Promise<void> => {
+  if (supabase && isOnline()) {
+    const { error } = await supabase.from('transactions').update(payload).eq('id', id);
+    if (error) throw error;
+  } else {
+    addToSyncQueue({ type: 'UPDATE_TRANSACTION', id, payload });
+    // Update local cache
+    const cached = getFromCache<Transaction>(CACHE_KEYS.TRANSACTIONS);
+    const index = cached.findIndex(t => t.id === id);
+    if (index !== -1) {
+      cached[index] = { ...cached[index], ...payload };
+      saveToCache(CACHE_KEYS.TRANSACTIONS, cached);
+    }
   }
 };
 
@@ -232,8 +232,6 @@ export const deleteTransaction = async (id: number): Promise<void> => {
      if (error) throw error;
    } else {
      addToSyncQueue({ type: 'DELETE_TRANSACTION', id });
-     
-     // Remove from local cache immediately for UI responsiveness
      const cached = getFromCache<Transaction>(CACHE_KEYS.TRANSACTIONS);
      const updated = cached.filter(t => t.id !== id);
      saveToCache(CACHE_KEYS.TRANSACTIONS, updated);
@@ -242,7 +240,7 @@ export const deleteTransaction = async (id: number): Promise<void> => {
 
 export const deleteAllData = async (): Promise<void> => {
   if (!supabase) throw new Error("Supabase not initialized");
-  if (!isOnline()) throw new Error("Cannot reset data while offline"); // Major destructive action needs internet
+  if (!isOnline()) throw new Error("Cannot reset data while offline");
   
   const { error: transError } = await supabase.from('transactions').delete().gt('id', 0);
   if (transError) throw transError;
@@ -250,13 +248,10 @@ export const deleteAllData = async (): Promise<void> => {
   const { error: suppError } = await supabase.from('suppliers').delete().gt('id', 0);
   if (suppError) throw suppError;
 
-  // Clear local caches too
   localStorage.removeItem(CACHE_KEYS.SUPPLIERS);
   localStorage.removeItem(CACHE_KEYS.TRANSACTIONS);
   localStorage.removeItem(CACHE_KEYS.SYNC_QUEUE);
 };
-
-// --- User Management ---
 
 export const fetchUsers = async (): Promise<User[]> => {
   if (supabase && isOnline()) {
@@ -278,7 +273,6 @@ export const createUser = async (name: string, code: string): Promise<User> => {
     const tempId = -Date.now();
     const newUser = { id: tempId, name, code, created_at: new Date().toISOString() };
     addToSyncQueue({ type: 'CREATE_USER', payload: { name, code, tempId } });
-    
     const cached = getFromCache<User>(CACHE_KEYS.USERS);
     cached.push(newUser);
     saveToCache(CACHE_KEYS.USERS, cached);
@@ -298,8 +292,6 @@ export const deleteUser = async (id: number): Promise<void> => {
   }
 };
 
-// --- App Settings ---
-
 export const fetchAppSettings = async (): Promise<AppSettings> => {
   if (supabase && isOnline()) {
     const { data, error } = await supabase.from('app_settings').select('*').eq('id', 1).single();
@@ -313,17 +305,13 @@ export const fetchAppSettings = async (): Promise<AppSettings> => {
       return settings;
     }
   }
-  
   const cached = localStorage.getItem(CACHE_KEYS.SETTINGS);
   if (cached) return JSON.parse(cached);
-
   return { companyName: 'نظام إدارة الموردين', logoUrl: '', adminPassword: '1234' };
 };
 
 export const saveAppSettings = async (settings: AppSettings): Promise<void> => {
-  // Always save to cache first
   saveToCache(CACHE_KEYS.SETTINGS, settings);
-
   if (supabase && isOnline()) {
     const dbPayload = {
       id: 1,
