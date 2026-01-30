@@ -10,7 +10,8 @@ const CACHE_KEYS = {
   TRANSACTIONS: 'offline_transactions',
   USERS: 'offline_users',
   SETTINGS: 'offline_settings',
-  SYNC_QUEUE: 'offline_sync_queue'
+  SYNC_QUEUE: 'offline_sync_queue',
+  LAST_BACKUP: 'app_last_backup_date'
 };
 
 // --- Sync Queue Types ---
@@ -324,4 +325,69 @@ export const saveAppSettings = async (settings: AppSettings): Promise<void> => {
   } else {
     addToSyncQueue({ type: 'SAVE_SETTINGS', payload: settings });
   }
+};
+
+// --- Backup & Restore ---
+
+export const getBackupData = async () => {
+  if (!supabase || !isOnline()) {
+    // Return cached data if offline
+    return {
+      suppliers: getFromCache(CACHE_KEYS.SUPPLIERS),
+      transactions: getFromCache(CACHE_KEYS.TRANSACTIONS),
+      users: getFromCache(CACHE_KEYS.USERS),
+      settings: getFromCache(CACHE_KEYS.SETTINGS),
+      backup_date: new Date().toISOString(),
+      offline: true
+    };
+  }
+
+  const [supps, trans, users, settings] = await Promise.all([
+    supabase.from('suppliers').select('*'),
+    supabase.from('transactions').select('*'),
+    supabase.from('users').select('*'),
+    supabase.from('app_settings').select('*').eq('id', 1).single()
+  ]);
+
+  return {
+    suppliers: supps.data || [],
+    transactions: trans.data || [],
+    users: users.data || [],
+    settings: settings.data || null,
+    backup_date: new Date().toISOString(),
+    version: '1.0'
+  };
+};
+
+export const restoreFromBackup = async (backupJson: any) => {
+  if (!supabase || !isOnline()) throw new Error("يجب توفر اتصال بالإنترنت لاستعادة البيانات");
+
+  // Step 1: Clear existing (DANGEROUS)
+  await deleteAllData();
+
+  // Step 2: Insert Suppliers first (due to FK)
+  if (backupJson.suppliers?.length > 0) {
+    const { error } = await supabase.from('suppliers').insert(backupJson.suppliers);
+    if (error) throw error;
+  }
+
+  // Step 3: Insert Users
+  if (backupJson.users?.length > 0) {
+    const { error } = await supabase.from('users').insert(backupJson.users);
+    if (error) throw error;
+  }
+
+  // Step 4: Insert Transactions
+  if (backupJson.transactions?.length > 0) {
+    const { error } = await supabase.from('transactions').insert(backupJson.transactions);
+    if (error) throw error;
+  }
+
+  // Step 5: Restore Settings
+  if (backupJson.settings) {
+    const { error } = await supabase.from('app_settings').upsert(backupJson.settings);
+    if (error) throw error;
+  }
+  
+  return true;
 };

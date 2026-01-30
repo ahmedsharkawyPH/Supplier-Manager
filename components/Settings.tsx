@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Building2, Image as ImageIcon, Lock, Settings as SettingsIcon, Users, AlertTriangle, Trash2, History } from 'lucide-react';
+import { Save, Building2, Image as ImageIcon, Lock, Settings as SettingsIcon, Users, AlertTriangle, Trash2, History, Database, Download, Upload, FileJson } from 'lucide-react';
 import { AppSettings, User, Transaction } from '../types';
 import * as api from '../services/supabaseService';
 import UserManagement from './UserManagement';
 import TransactionManager from './TransactionManager';
+import BackupManager from './BackupManager';
 
 interface Props {
   onSave: (settings: AppSettings) => void;
@@ -21,7 +22,7 @@ interface Props {
 }
 
 const Settings: React.FC<Props> = ({ onSave, users, onAddUser, onDeleteUser, transactions, onUpdateTransaction, onDeleteTransaction, onResetData }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'operations'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'operations' | 'backup'>('general');
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -104,6 +105,17 @@ const Settings: React.FC<Props> = ({ onSave, users, onAddUser, onDeleteUser, tra
         >
           <Users className="w-5 h-5" />
           إدارة المستخدمين
+        </button>
+        <button
+          onClick={() => setActiveTab('backup')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all ${
+            activeTab === 'backup' 
+              ? 'bg-primary-600 text-white shadow-md' 
+              : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <Database className="w-5 h-5" />
+          النسخ الاحتياطي
         </button>
       </div>
 
@@ -224,6 +236,12 @@ const Settings: React.FC<Props> = ({ onSave, users, onAddUser, onDeleteUser, tra
             onAddUser={onAddUser}
             onDeleteUser={onDeleteUser}
           />
+        </div>
+      )}
+
+      {activeTab === 'backup' && (
+        <div className="animate-in fade-in">
+          <BackupManager />
         </div>
       )}
     </div>
