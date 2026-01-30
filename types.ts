@@ -2,7 +2,7 @@
 export type TransactionType = 'invoice' | 'payment' | 'return';
 
 export interface Supplier {
-  id: string; // Changed from number to string
+  id: string; 
   name: string;
   phone?: string;
   code?: string;
@@ -22,7 +22,7 @@ export interface User {
 
 export interface Transaction {
   id: number;
-  supplier_id: string; // Changed from number to string
+  supplier_id: string; 
   type: TransactionType;
   amount: number;
   date: string;
@@ -30,7 +30,7 @@ export interface Transaction {
   notes?: string;
   created_by?: string; 
   created_at?: string;
-  supplier?: Supplier; 
+  supplier?: { name: string }; 
 }
 
 export interface SupplierSummary {

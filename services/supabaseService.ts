@@ -14,7 +14,7 @@ const CACHE_KEYS = {
 };
 
 type QueueAction = 
-  | { type: 'CREATE_SUPPLIER'; payload: { id: string; name: string; phone: string } }
+  | { type: 'CREATE_SUPPLIER'; payload: Partial<Supplier> }
   | { type: 'CREATE_TRANSACTION'; payload: any; tempId: number }
   | { type: 'UPDATE_TRANSACTION'; id: number; payload: Partial<Transaction> }
   | { type: 'DELETE_TRANSACTION'; id: number }
@@ -73,7 +73,7 @@ export const syncOfflineChanges = async (): Promise<number> => {
     try {
       switch (action.type) {
         case 'CREATE_SUPPLIER':
-          await supabase.from('suppliers').insert([{ id: action.payload.id, name: action.payload.name, phone: action.payload.phone }]);
+          await supabase.from('suppliers').insert([action.payload]);
           break;
         case 'CREATE_TRANSACTION':
           const { tempId, ...transData } = action.payload;
@@ -121,22 +121,23 @@ export const fetchSuppliers = async (): Promise<Supplier[]> => {
 };
 
 export const createSupplier = async (name: string, phone: string): Promise<Supplier> => {
-  const newId = Date.now().toString(); // Use string ID
+  const newId = Date.now().toString();
+  const payload = { id: newId, name, phone, opening_balance: 0, current_balance: 0 };
   if (supabase && isOnline()) {
     const { data, error } = await supabase
       .from('suppliers')
-      .insert([{ id: newId, name, phone }])
+      .insert([payload])
       .select()
       .single();
     if (error) throw error;
     return data;
   } else {
-    const tempSupplier = { id: newId, name, phone, created_at: new Date().toISOString() };
-    addToSyncQueue({ type: 'CREATE_SUPPLIER', payload: { id: newId, name, phone } });
+    addToSyncQueue({ type: 'CREATE_SUPPLIER', payload });
     const cached = getFromCache<Supplier>(CACHE_KEYS.SUPPLIERS);
-    cached.push(tempSupplier);
+    const newSupp = { ...payload, created_at: new Date().toISOString() };
+    cached.push(newSupp);
     saveToCache(CACHE_KEYS.SUPPLIERS, cached);
-    return tempSupplier;
+    return newSupp;
   }
 };
 
@@ -165,7 +166,6 @@ export const createTransaction = async (transaction: Omit<Transaction, 'id' | 'c
     return data;
   } else {
     const tempId = -Date.now();
-    // @ts-ignore
     addToSyncQueue({ type: 'CREATE_TRANSACTION', payload: { ...transaction, tempId }, tempId });
     return { id: tempId, ...transaction, created_at: new Date().toISOString() } as Transaction;
   }
