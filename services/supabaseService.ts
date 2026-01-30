@@ -122,7 +122,15 @@ export const fetchSuppliers = async (): Promise<Supplier[]> => {
 
 export const createSupplier = async (name: string, phone: string): Promise<Supplier> => {
   const newId = Date.now().toString();
-  const payload = { id: newId, name, phone, opening_balance: 0, current_balance: 0 };
+  // Ensure payload values are clean
+  const payload = { 
+    id: String(newId), 
+    name: name.trim(), 
+    phone: phone ? phone.trim() : null, 
+    opening_balance: 0, 
+    current_balance: 0 
+  };
+  
   if (supabase && isOnline()) {
     const { data, error } = await supabase
       .from('suppliers')
@@ -143,31 +151,40 @@ export const createSupplier = async (name: string, phone: string): Promise<Suppl
 
 export const fetchTransactions = async (): Promise<Transaction[]> => {
   if (supabase && isOnline()) {
+    // Select with explicit join through the foreign key
     const { data, error } = await supabase
       .from('transactions')
       .select(`*, supplier:suppliers(name)`)
       .order('date', { ascending: false });
+    
     if (!error && data) {
       saveToCache(CACHE_KEYS.TRANSACTIONS, data);
       return data;
     }
+    if (error) console.error("Transactions fetch error:", error);
   }
   return getFromCache<Transaction>(CACHE_KEYS.TRANSACTIONS);
 };
 
 export const createTransaction = async (transaction: Omit<Transaction, 'id' | 'created_at' | 'supplier'>): Promise<Transaction> => {
+  // Force supplier_id to be a string
+  const cleanTransaction = {
+    ...transaction,
+    supplier_id: String(transaction.supplier_id)
+  };
+
   if (supabase && isOnline()) {
     const { data, error } = await supabase
       .from('transactions')
-      .insert([transaction])
+      .insert([cleanTransaction])
       .select()
       .single();
     if (error) throw error;
     return data;
   } else {
     const tempId = -Date.now();
-    addToSyncQueue({ type: 'CREATE_TRANSACTION', payload: { ...transaction, tempId }, tempId });
-    return { id: tempId, ...transaction, created_at: new Date().toISOString() } as Transaction;
+    addToSyncQueue({ type: 'CREATE_TRANSACTION', payload: { ...cleanTransaction, tempId }, tempId });
+    return { id: tempId, ...cleanTransaction, created_at: new Date().toISOString() } as Transaction;
   }
 };
 
@@ -189,8 +206,9 @@ export const deleteTransaction = async (id: number): Promise<void> => {
 
 export const deleteAllData = async (): Promise<void> => {
   if (!supabase || !isOnline()) return;
-  await supabase.from('transactions').delete().gt('id', 0);
-  await supabase.from('suppliers').delete().neq('id', '0');
+  // Use explicit filters to match user's schema types
+  await supabase.from('transactions').delete().neq('id', 0);
+  await supabase.from('suppliers').delete().neq('id', '');
   localStorage.removeItem(CACHE_KEYS.SUPPLIERS);
   localStorage.removeItem(CACHE_KEYS.TRANSACTIONS);
 };
