@@ -2,30 +2,35 @@
 export type TransactionType = 'invoice' | 'payment' | 'return';
 
 export interface Supplier {
-  id: number;
+  id: string; // Changed from number to string
   name: string;
   phone?: string;
+  code?: string;
+  contact_person?: string;
+  address?: string;
+  opening_balance?: number;
+  current_balance?: number;
   created_at?: string;
 }
 
 export interface User {
   id: number;
   name: string;
-  code: string; // The access PIN
+  code: string; 
   created_at?: string;
 }
 
 export interface Transaction {
   id: number;
-  supplier_id: number;
+  supplier_id: string; // Changed from number to string
   type: TransactionType;
   amount: number;
   date: string;
-  reference_number?: string; // Invoice number or Check number
+  reference_number?: string; 
   notes?: string;
-  created_by?: string; // Name of the user who created it
+  created_by?: string; 
   created_at?: string;
-  supplier?: Supplier; // For join queries
+  supplier?: Supplier; 
 }
 
 export interface SupplierSummary {
@@ -33,7 +38,7 @@ export interface SupplierSummary {
   totalInvoices: number;
   totalPayments: number;
   totalReturns: number;
-  balance: number; // Invoices - (Payments + Returns)
+  balance: number; 
 }
 
 export interface SupabaseCredentials {
