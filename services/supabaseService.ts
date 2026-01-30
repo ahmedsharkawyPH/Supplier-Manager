@@ -15,6 +15,7 @@ const CACHE_KEYS = {
 
 type QueueAction = 
   | { type: 'CREATE_SUPPLIER'; payload: Partial<Supplier> }
+  | { type: 'UPDATE_SUPPLIER'; id: string; payload: Partial<Supplier> }
   | { type: 'CREATE_TRANSACTION'; payload: any; tempId: number }
   | { type: 'UPDATE_TRANSACTION'; id: number; payload: Partial<Transaction> }
   | { type: 'DELETE_TRANSACTION'; id: number }
@@ -75,6 +76,9 @@ export const syncOfflineChanges = async (): Promise<number> => {
         case 'CREATE_SUPPLIER':
           await supabase.from('suppliers').insert([action.payload]);
           break;
+        case 'UPDATE_SUPPLIER':
+          await supabase.from('suppliers').update(action.payload).eq('id', action.id);
+          break;
         case 'CREATE_TRANSACTION':
           const { tempId, ...transData } = action.payload;
           await supabase.from('transactions').insert([transData]);
@@ -120,14 +124,13 @@ export const fetchSuppliers = async (): Promise<Supplier[]> => {
   return getFromCache<Supplier>(CACHE_KEYS.SUPPLIERS);
 };
 
-export const createSupplier = async (name: string, phone: string): Promise<Supplier> => {
+export const createSupplier = async (name: string, phone: string, openingBalance: number = 0): Promise<Supplier> => {
   const newId = Date.now().toString();
-  // Ensure payload values are clean
   const payload = { 
     id: String(newId), 
     name: name.trim(), 
     phone: phone ? phone.trim() : null, 
-    opening_balance: 0, 
+    opening_balance: openingBalance, 
     current_balance: 0 
   };
   
@@ -149,9 +152,17 @@ export const createSupplier = async (name: string, phone: string): Promise<Suppl
   }
 };
 
+export const updateSupplier = async (id: string, payload: Partial<Supplier>): Promise<void> => {
+  if (supabase && isOnline()) {
+    const { error } = await supabase.from('suppliers').update(payload).eq('id', id);
+    if (error) throw error;
+  } else {
+    addToSyncQueue({ type: 'UPDATE_SUPPLIER', id, payload });
+  }
+};
+
 export const fetchTransactions = async (): Promise<Transaction[]> => {
   if (supabase && isOnline()) {
-    // Select with explicit join through the foreign key
     const { data, error } = await supabase
       .from('transactions')
       .select(`*, supplier:suppliers(name)`)
@@ -161,13 +172,11 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
       saveToCache(CACHE_KEYS.TRANSACTIONS, data);
       return data;
     }
-    if (error) console.error("Transactions fetch error:", error);
   }
   return getFromCache<Transaction>(CACHE_KEYS.TRANSACTIONS);
 };
 
 export const createTransaction = async (transaction: Omit<Transaction, 'id' | 'created_at' | 'supplier'>): Promise<Transaction> => {
-  // Force supplier_id to be a string
   const cleanTransaction = {
     ...transaction,
     supplier_id: String(transaction.supplier_id)
@@ -206,7 +215,6 @@ export const deleteTransaction = async (id: number): Promise<void> => {
 
 export const deleteAllData = async (): Promise<void> => {
   if (!supabase || !isOnline()) return;
-  // Use explicit filters to match user's schema types
   await supabase.from('transactions').delete().neq('id', 0);
   await supabase.from('suppliers').delete().neq('id', '');
   localStorage.removeItem(CACHE_KEYS.SUPPLIERS);

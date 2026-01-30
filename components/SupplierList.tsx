@@ -1,18 +1,20 @@
+
 import React from 'react';
 import { Supplier, SupplierSummary } from '../types';
-import { Phone, FileSpreadsheet, ChevronLeft } from 'lucide-react';
+import { Phone, FileSpreadsheet, ChevronLeft, Edit2, UserPlus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Props {
   summaries: SupplierSummary[];
   onDeleteTransaction: (id: number) => void;
   onSelectSupplier: (supplier: Supplier) => void;
+  onEditSupplier: (supplier: Supplier) => void;
+  onAddNewSupplier: () => void;
 }
 
-const SupplierList: React.FC<Props> = ({ summaries, onSelectSupplier }) => {
+const SupplierList: React.FC<Props> = ({ summaries, onSelectSupplier, onEditSupplier, onAddNewSupplier }) => {
 
   const handleExportExcel = () => {
-    // 1. Prepare Summary Data
     const summaryData = summaries.map(s => ({
       'المورد': s.supplier.name,
       'رقم الهاتف': s.supplier.phone || '-',
@@ -22,16 +24,11 @@ const SupplierList: React.FC<Props> = ({ summaries, onSelectSupplier }) => {
       'الرصيد الحالي': s.balance
     }));
 
-    // 3. Create Workbook
     const wb = XLSX.utils.book_new();
-    
-    // 4. Add Summary Sheet
     const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-    // Adjust column widths visually
     wsSummary['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
     XLSX.utils.book_append_sheet(wb, wsSummary, "ملخص الموردين");
 
-    // 6. Save File
     const date = new Date();
     const formattedDate = `${date.getDate()}-${date.getMonth()+1}-${date.getFullYear()}`;
     XLSX.writeFile(wb, `Suppliers_Summary_${formattedDate}.xlsx`);
@@ -39,18 +36,29 @@ const SupplierList: React.FC<Props> = ({ summaries, onSelectSupplier }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-       <div className="border-b border-slate-100 p-4 bg-slate-50 flex items-center justify-between">
+       <div className="border-b border-slate-100 p-4 bg-slate-50 flex flex-col md:flex-row items-center justify-between gap-4">
         <h2 className="font-bold text-lg text-slate-800">قائمة الموردين</h2>
         
-        <button 
-          onClick={handleExportExcel}
-          disabled={summaries.length === 0}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          تصدير القائمة
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={onAddNewSupplier}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            مورد جديد
+          </button>
+          
+          <button 
+            onClick={handleExportExcel}
+            disabled={summaries.length === 0}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            تصدير القائمة
+          </button>
+        </div>
       </div>
+      
       <div className="divide-y divide-slate-100">
         {summaries.length === 0 && (
           <div className="p-8 text-center text-slate-500">
@@ -58,10 +66,19 @@ const SupplierList: React.FC<Props> = ({ summaries, onSelectSupplier }) => {
           </div>
         )}
         {summaries.map((summary) => (
-          <div key={summary.supplier.id} className="group transition-colors hover:bg-slate-50">
+          <div key={summary.supplier.id} className="group transition-colors hover:bg-slate-50 flex items-center pr-4">
+            
+            <button 
+              onClick={() => onEditSupplier(summary.supplier)}
+              className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
+              title="تعديل بيانات المورد"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+
             {/* Summary Row - Clickable to open Statement */}
             <div 
-              className="p-4 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
+              className="flex-1 p-4 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
               onClick={() => onSelectSupplier(summary.supplier)}
             >
               <div className="flex items-center gap-3">
