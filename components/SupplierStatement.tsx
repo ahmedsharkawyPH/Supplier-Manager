@@ -60,72 +60,71 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
   // Process Data
   const { 
     openingBalanceAtStart, 
-    filteredPeriodTransactions, 
+    filteredWithBalances, 
     paginatedTransactions, 
     totalPages,
-    pageOpeningBalance,
     totals 
   } = useMemo(() => {
-    // 1. Sort all transactions ascending by date
+    // 1. Sort all transactions ASCENDING for correct chronological balance calculation
     const sortedAll = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // 2. Calculate Opening Balance (before startDate)
-    let opBalanceAtStart = 0;
-    const inRange: Transaction[] = [];
+    let runningBalance = Number(supplier.opening_balance || 0);
+    const inRangeWithBalances: (Transaction & { runningBalance: number })[] = [];
     
     sortedAll.forEach(t => {
-      if (t.date < startDate) {
-        if (t.type === 'invoice') opBalanceAtStart += t.amount;
-        else opBalanceAtStart -= t.amount;
-      } else if (t.date >= startDate && t.date <= endDate) {
+      const amount = Number(t.amount);
+      if (t.type === 'invoice') runningBalance += amount;
+      else runningBalance -= amount;
+
+      if (t.date >= startDate && t.date <= endDate) {
         // Apply filters
         const matchesSearch = !searchQuery || (t.reference_number || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesType = selectedTypes[t.type];
         
         if (matchesSearch && matchesType) {
-          inRange.push(t);
+          inRangeWithBalances.push({ ...t, runningBalance });
         }
       }
     });
 
-    // 3. Totals for the entire filtered range
+    // Calculate initial opening balance for the selected period
+    let opBalanceAtStart = Number(supplier.opening_balance || 0);
+    sortedAll.forEach(t => {
+        if (t.date < startDate) {
+            if (t.type === 'invoice') opBalanceAtStart += t.amount;
+            else opBalanceAtStart -= t.amount;
+        }
+    });
+
+    // 3. Totals for the period
     const periodTotals = { debit: 0, credit: 0 };
-    inRange.forEach(t => {
+    inRangeWithBalances.forEach(t => {
        if (t.type === 'invoice') periodTotals.debit += t.amount;
        else periodTotals.credit += t.amount;
     });
 
-    // 4. Pagination Logic
-    // We want "Last 20" to be the default view. 
-    // In accounting, typically we show oldest at top, newest at bottom.
-    // If we have 100 items, page 1 (default) should show 81-100? 
-    // Usually, users expect page 1 to be the START. 
-    // To satisfy "show last 20", we will reverse the list for pagination calculation or just calculate index.
-    const totalItems = inRange.length;
-    const pages = Math.ceil(totalItems / PAGE_SIZE) || 1;
-    
-    // Slice transactions for current page
-    const startIdx = (currentPage - 1) * PAGE_SIZE;
-    const endIdx = startIdx + PAGE_SIZE;
-    const pageItems = inRange.slice(startIdx, endIdx);
+    // 4. Sort DESCENDING for display (Newest First)
+    const descendingInRange = [...inRangeWithBalances].sort((a, b) => {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return (b.id || 0) - (a.id || 0); // fallback to ID for same-day order
+    });
 
-    // 5. Calculate opening balance for THIS specific page
-    // It's the opBalanceAtStart + sum of all filtered items before this page
-    let pageOpBal = opBalanceAtStart;
-    for(let i = 0; i < startIdx; i++) {
-        if (inRange[i].type === 'invoice') pageOpBal += inRange[i].amount;
-        else pageOpBal -= inRange[i].amount;
-    }
+    // 5. Pagination Logic
+    const totalItems = descendingInRange.length;
+    const pages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = descendingInRange.slice(startIdx, startIdx + PAGE_SIZE);
 
     return {
       openingBalanceAtStart: opBalanceAtStart,
-      filteredPeriodTransactions: inRange,
+      filteredWithBalances: descendingInRange,
       paginatedTransactions: pageItems,
       totalPages: pages,
-      pageOpeningBalance: pageOpBal,
       totals: periodTotals
     };
-  }, [transactions, startDate, endDate, searchQuery, selectedTypes, currentPage]);
+  }, [transactions, supplier, startDate, endDate, searchQuery, selectedTypes, currentPage]);
 
   const handlePrint = () => {
     window.print();
@@ -165,24 +164,21 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
     data.push({ 'التاريخ': `من: ${formatDate(startDate)} إلى: ${formatDate(endDate)}` });
     data.push({});
 
-    let currentBalance = openingBalanceAtStart;
     data.push({
       'التاريخ': formatDate(startDate),
       'نوع العملية': 'رصيد افتتاحي ما قبل الفترة',
-      'الرصيد': currentBalance
+      'الرصيد': openingBalanceAtStart
     });
 
-    filteredPeriodTransactions.forEach(t => {
-      const isDebit = t.type === 'invoice';
-      if (isDebit) currentBalance += t.amount;
-      else currentBalance -= t.amount;
+    // Excel is often preferred chronological, but we'll follow UI (Descending)
+    filteredWithBalances.forEach(t => {
       data.push({
         'التاريخ': formatDate(t.date),
         'نوع العملية': t.type === 'invoice' ? 'فاتورة' : t.type === 'payment' ? 'سداد' : 'مرتجع',
         'رقم المستند': t.reference_number || '',
-        'مدين': isDebit ? t.amount : 0,
-        'دائن': !isDebit ? t.amount : 0,
-        'الرصيد': currentBalance
+        'مدين': t.type === 'invoice' ? t.amount : 0,
+        'دائن': t.type !== 'invoice' ? t.amount : 0,
+        'الرصيد': t.runningBalance
       });
     });
 
@@ -195,9 +191,6 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
   const toggleType = (type: keyof typeof selectedTypes) => {
     setSelectedTypes(prev => ({ ...prev, [type]: !prev[type] }));
   };
-
-  // Running balance for the table rows in the current page view
-  let runningBal = pageOpeningBalance;
 
   return (
     <div className="bg-white min-h-screen pb-10">
@@ -256,6 +249,9 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
                 {selectedTypes.return ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />} مرتجع
               </button>
             </div>
+            <div className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+              الترتيب: الأحدث أولاً
+            </div>
         </div>
       </div>
 
@@ -293,44 +289,43 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
            </div>
         </div>
 
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-800 font-bold">
+            <thead className="bg-slate-800 text-white font-bold">
               <tr>
-                <th className="p-3 text-right border-b">التاريخ</th>
-                <th className="p-3 text-right border-b">نوع العملية</th>
-                <th className="p-3 text-right border-b">رقم المستند</th>
-                <th className="p-3 text-right border-b w-1/3">ملاحظات</th>
-                <th className="p-3 text-center border-b">مدين</th>
-                <th className="p-3 text-center border-b">دائن</th>
-                <th className="p-3 text-center border-b bg-slate-100">الرصيد</th>
+                <th className="p-3 text-right border-b border-slate-700">التاريخ</th>
+                <th className="p-3 text-right border-b border-slate-700">نوع العملية</th>
+                <th className="p-3 text-right border-b border-slate-700">رقم المستند</th>
+                <th className="p-3 text-right border-b border-slate-700 w-1/3">ملاحظات</th>
+                <th className="p-3 text-center border-b border-slate-700">مدين</th>
+                <th className="p-3 text-center border-b border-slate-700">دائن</th>
+                <th className="p-3 text-center border-b border-slate-700 bg-slate-900">الرصيد</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              <tr className="bg-amber-50">
-                <td className="p-3 text-slate-500">{formatDate(startDate)}</td>
-                <td colSpan={5} className="p-3 font-bold text-slate-700 text-right">رصيد منقول (بداية الصفحة)</td>
-                <td className="p-3 text-center font-bold dir-ltr bg-amber-100/50">{pageOpeningBalance.toLocaleString()}</td>
-              </tr>
-
               {paginatedTransactions.length === 0 && (
-                <tr><td colSpan={7} className="p-8 text-center text-slate-500">لا توجد عمليات في هذه الصفحة</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold italic">لا توجد عمليات مسجلة في هذه الفترة</td></tr>
               )}
 
               {paginatedTransactions.map((t) => {
                  const isDebit = t.type === 'invoice';
-                 if (isDebit) runningBal += t.amount;
-                 else runningBal -= t.amount;
-
                  return (
-                   <tr key={t.id} className="hover:bg-slate-50 print:break-inside-avoid">
+                   <tr key={t.id} className="hover:bg-slate-50 transition-colors print:break-inside-avoid">
                      <td className="p-3 text-slate-700 font-mono">{formatDate(t.date)}</td>
-                     <td className="p-3 font-bold">{t.type === 'invoice' ? 'فاتورة' : t.type === 'payment' ? 'سداد' : 'مرتجع'}</td>
+                     <td className="p-3 font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[10px] ${
+                            t.type === 'invoice' ? 'bg-blue-100 text-blue-700' : 
+                            t.type === 'payment' ? 'bg-green-100 text-green-700' : 
+                            'bg-orange-100 text-orange-700'
+                        }`}>
+                            {t.type === 'invoice' ? 'فاتورة' : t.type === 'payment' ? 'سداد' : 'مرتجع'}
+                        </span>
+                     </td>
                      <td className="p-3 text-slate-600 font-mono text-xs">{t.reference_number || '-'}</td>
                      <td className="p-3 text-slate-600 text-xs">{t.notes || '-'}</td>
                      <td className="p-3 text-center">{isDebit ? <span className="font-bold text-blue-700">{t.amount.toLocaleString()}</span> : '-'}</td>
                      <td className="p-3 text-center">{!isDebit ? <span className="font-bold text-green-700">{t.amount.toLocaleString()}</span> : '-'}</td>
-                     <td className="p-3 text-center font-bold dir-ltr bg-slate-50/50">{runningBal.toLocaleString()}</td>
+                     <td className="p-3 text-center font-bold dir-ltr bg-slate-50/80 border-r border-slate-100 text-slate-900">{t.runningBalance.toLocaleString()}</td>
                    </tr>
                  );
               })}
@@ -341,7 +336,7 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
         {/* Pagination Controls - No Print */}
         <div className="no-print mt-6 flex flex-col md:flex-row items-center justify-between gap-4 border-t pt-4">
           <div className="text-sm text-slate-500">
-            عرض {paginatedTransactions.length} من أصل {filteredPeriodTransactions.length} معاملة
+            عرض {paginatedTransactions.length} من أصل {filteredWithBalances.length} معاملة
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -351,12 +346,12 @@ const SupplierStatement: React.FC<Props> = ({ supplier, transactions, onBack, se
             >
               <ChevronRight className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] md:max-w-none py-1">
               {[...Array(totalPages)].map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-primary-600 text-white' : 'hover:bg-slate-100 text-slate-600'}`}
+                  className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all shrink-0 ${currentPage === i + 1 ? 'bg-primary-600 text-white shadow-md' : 'hover:bg-slate-100 text-slate-600 border border-slate-200'}`}
                 >
                   {i + 1}
                 </button>
